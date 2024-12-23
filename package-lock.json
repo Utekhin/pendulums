@@ -1,0 +1,19 @@
+{
+    "name": "pendulums-sound-game",
+    "version": "1.0.0",
+    "lockfileVersion": 3,
+    "requires": true,
+    "packages": {
+      "": {
+        "name": "pendulums-sound-game", 
+        "version": "1.0.0",
+        "dependencies": {
+          "serve": "^14.2.1"
+        }
+      },
+      "node_modules/serve": {
+        "version": "14.2.1",
+        "resolved": "https://registry.npmjs.org/serve/-/serve-14.2.1.tgz"
+      }
+    }
+  }
