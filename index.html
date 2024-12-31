@@ -99,7 +99,7 @@ const CENTER_Y = gameField.clientHeight / 2;
 const FIELD_RADIUS = Math.min(CENTER_X, CENTER_Y) * 0.95;
 const maxPasses = 10;
 
-const pendulums = [];
+let pendulums = []; // Changed to let for complete reassignment
 const sounds = Array.from({ length: 16 }, (_, i) => `samples/${String(i + 1).padStart(2, '0')}.mp3`);
 const shadesOfGray = Array.from({ length: 16 }, (_, i) => `rgb(${16 * i}, ${16 * i}, ${16 * i})`);
 let points = 0;
@@ -107,11 +107,55 @@ let timeRemaining = 60;
 let gameTimer = null;
 let launchPointController;
 let animationFrameId = null;
+let launcherAnimationId = null; // New variable to track launcher animation
+let isGameActive = false; // New flag to track game state
 
 const gameFieldSize = gameField.clientWidth;
 const pendulumSizes = Array.from({ length: 16 }, (_, i) =>
     gameFieldSize * (1 / 10 - (i / 16) * (1 / 12 - 1 / 24))
 );
+
+class LaunchPointController {
+    constructor(element) {
+        this.element = element;
+        this.angle = 0;
+        this.direction = 1;
+        this.speed = 0.01;
+        this.updatePosition();
+        this.startAnimation();
+    }
+
+    updatePosition() {
+        const x = CENTER_X + FIELD_RADIUS * Math.cos(this.angle);
+        const y = CENTER_Y - FIELD_RADIUS * Math.sin(this.angle);
+        this.element.style.left = `${x - this.element.offsetWidth / 2}px`;
+        this.element.style.top = `${y - this.element.offsetHeight / 2}px`;
+    }
+
+    startAnimation() {
+        const animate = () => {
+            this.angle += this.direction * this.speed;
+            if (this.angle >= Math.PI || this.angle <= 0) {
+                this.direction *= -1;
+            }
+            this.updatePosition();
+            launcherAnimationId = requestAnimationFrame(animate);
+        };
+        animate();
+    }
+
+    stopAnimation() {
+        if (launcherAnimationId) {
+            cancelAnimationFrame(launcherAnimationId);
+        }
+    }
+
+    getPosition() {
+        const x = CENTER_X + FIELD_RADIUS * Math.cos(this.angle);
+        const y = CENTER_Y - FIELD_RADIUS * Math.sin(this.angle);
+        return { x, y };
+    }
+}
 
 class Pendulum {
     constructor(startX, startY, size, color, sound) {
@@ -125,6 +169,7 @@ class Pendulum {
         this.period = 7;
         this.phase = 0;
         this.time = 0;
+        this.isRemoved = false;
 
         this.createElements();
         this.updatePosition();
@@ -144,6 +189,8 @@ class Pendulum {
     }
 
     updatePosition() {
+        if (this.isRemoved) return;
+
         const currentAmplitude = this.amplitude * Math.pow(0.98, this.centerPasses);
         const t = this.time * (2 * Math.PI / this.period);
 
@@ -175,12 +222,16 @@ class Pendulum {
     }
 
     remove() {
-        if (this.stringElement.parentNode) {
-            gameField.removeChild(this.stringElement);
+        if (this.isRemoved) return;
+        
+        this.isRemoved = true;
+        if (this.stringElement && this.stringElement.parentNode) {
+            this.stringElement.parentNode.removeChild(this.stringElement);
         }
-        if (this.ballElement.parentNode) {
-            gameField.removeChild(this.ballElement);
+        if (this.ballElement && this.ballElement.parentNode) {
+            this.ballElement.parentNode.removeChild(this.ballElement);
         }
+        
         const index = pendulums.indexOf(this);
         if (index !== -1) {
             pendulums.splice(index, 1);
@@ -188,8 +239,10 @@ class Pendulum {
     }
 
     detectCollision() {
+        if (this.isRemoved) return;
+
         for (const other of pendulums) {
-            if (other === this) continue;
+            if (other === this || other.isRemoved) continue;
             const dx = parseFloat(this.ballElement.style.left) - parseFloat(other.ballElement.style.left);
             const dy = parseFloat(this.ballElement.style.top) - parseFloat(other.ballElement.style.top);
             const distance = Math.sqrt(dx * dx + dy * dy);
@@ -202,40 +255,52 @@ class Pendulum {
     }
 }
 
-class LaunchPointController {
-    constructor(element) {
-        this.element = element;
-        this.angle = 0;
-        this.direction = 1;
-        this.speed = 0.01;
-        this.updatePosition();
-        this.animate();
+function cleanupGame() {
+    // Stop animations
+    if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+        animationFrameId = null;
     }
 
-    updatePosition() {
-        const x = CENTER_X + FIELD_RADIUS * Math.cos(this.angle);
-        const y = CENTER_Y - FIELD_RADIUS * Math.sin(this.angle);
-        this.element.style.left = `${x - this.element.offsetWidth / 2}px`;
-        this.element.style.top = `${y - this.element.offsetHeight / 2}px`;
+    // Clear timer
+    if (gameTimer) {
+        clearInterval(gameTimer);
+        gameTimer = null;
     }
 
-    animate() {
-        this.angle += this.direction * this.speed;
-        if (this.angle >= Math.PI || this.angle <= 0) {
-            this.direction *= -1;
+    // Remove all pendulums
+    pendulums.forEach(pendulum => {
+        if (!pendulum.isRemoved) {
+            pendulum.remove();
         }
-        this.updatePosition();
-        requestAnimationFrame(() => this.animate());
-    }
+    });
 
-    getPosition() {
-        const x = CENTER_X + FIELD_RADIUS * Math.cos(this.angle);
-        const y = CENTER_Y - FIELD_RADIUS * Math.sin(this.angle);
-        return { x, y };
-    }
+    // Clear the pendulums array
+    pendulums = [];
+
+    // Force cleanup of any orphaned elements
+    const orphanedStrings = gameField.querySelectorAll('.pendulum-string');
+    const orphanedBalls = gameField.querySelectorAll('.ball');
+    
+    orphanedStrings.forEach(element => {
+        if (element.parentNode) {
+            element.parentNode.removeChild(element);
+        }
+    });
+    
+    orphanedBalls.forEach(element => {
+        if (element.parentNode) {
+            element.parentNode.removeChild(element);
+        }
+    });
 }
 
 function createPendulum() {
+    if (!isGameActive) {
+        resetGame();
+        return;
+    }
+
     const startPos = launchPointController.getPosition();
     const segment = Math.floor(startPos.x / (gameField.clientWidth / 16));
     const size = pendulumSizes[0];
@@ -244,10 +309,6 @@ function createPendulum() {
 
     const pendulum = new Pendulum(startPos.x, startPos.y, size, color, sound);
     pendulums.push(pendulum);
-
-    if (!gameTimer) {
-        startGame();
-    }
 }
 
 function updateScore() {
@@ -261,6 +322,7 @@ function updateTime() {
 }
 
 function startGame() {
+    isGameActive = true;
     points = 0;
     timeRemaining = 60;
     updateScore();
@@ -275,7 +337,7 @@ function startGame() {
             timeRemaining--;
             updateTime();
         } else {
-            clearInterval(gameTimer);
+            isGameActive = false;
             stopGame();
             alert(`Game Over! Your score: ${points}`);
         }
@@ -287,29 +349,21 @@ function startGame() {
 }
 
 function stopGame() {
-    clearInterval(gameTimer);
-    gameTimer = null;
-    pendulums.forEach(pendulum => pendulum.remove());
-    pendulums.length = 0;
-    if (animationFrameId) {
-        cancelAnimationFrame(animationFrameId);
-        animationFrameId = null;
-    }
+    isGameActive = false;
+    cleanupGame();
 }
 
 function resetGame() {
-    stopGame();
-    points = 0;
-    timeRemaining = 60;
-    updateScore();
-    updateTime();
-    animate();
+    cleanupGame();
+    startGame();
 }
 
 function animate() {
     pendulums.forEach(pendulum => {
-        pendulum.updatePosition();
-        pendulum.detectCollision();
+        if (!pendulum.isRemoved) {
+            pendulum.updatePosition();
+            pendulum.detectCollision();
+        }
     });
     animationFrameId = requestAnimationFrame(animate);
 }
