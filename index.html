@@ -77,14 +77,14 @@
             z-index: 0;
         }
         .ball {
-    position: absolute;
-    width: 50px; 
-    height: 50px;
-    background: radial-gradient(circle, #ffcc33 20%, #ffaa00 80%);
-    border-radius: 50%;
-    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3), inset 0 -4px 8px rgba(0, 0, 0, 0.2);
-    transition: background-color 0.5s ease, transform 0.3s ease;
-}
+            position: absolute;
+            width: 50px; 
+            height: 50px;
+            background: radial-gradient(circle, #ffcc33 20%, #ffaa00 80%);
+            border-radius: 50%;
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3), inset 0 -4px 8px rgba(0, 0, 0, 0.2);
+            transition: background 0.5s ease, transform 0.3s ease;
+        }
 
         #points, #time {
             background-color: white;
@@ -148,11 +148,24 @@ const pointsDisplay = document.getElementById('points');
 const timeDisplay = document.getElementById('time');
 const speedRange = document.getElementById('speedRange');
 
-// Constants for game setup
+// Constants
 const CENTER_X = gameField.clientWidth / 2;
 const CENTER_Y = gameField.clientHeight / 2;
 const FIELD_RADIUS = Math.min(CENTER_X, CENTER_Y) * 0.95;
 const maxPasses = 10;
+
+// Gradient shades for the ball
+const gradientShades = [
+    'radial-gradient(circle, #ffcc33 20%, #ffaa00 80%)',
+    'radial-gradient(circle, #ffd966 20%, #ffcc33 80%)',
+    'radial-gradient(circle, #ffe599 20%, #ffd966 80%)',
+    'radial-gradient(circle, #fff2cc 20%, #ffe599 80%)',
+    'radial-gradient(circle, #f9f9f9 20%, #fff2cc 80%)',
+    'radial-gradient(circle, #f2f2f2 20%, #f9f9f9 80%)',
+    'radial-gradient(circle, #ebebeb 20%, #f2f2f2 80%)',
+    'radial-gradient(circle, #e5e5e5 20%, #ebebeb 80%)',
+    'radial-gradient(circle, #dfdfdf 20%, #e5e5e5 80%)'
+];
 
 // Variables for managing game state and pendulums
 let pendulums = [];
@@ -237,7 +250,8 @@ class Pendulum {
         this.ballElement.className = 'ball';
         this.ballElement.style.width = `${this.size}px`;
         this.ballElement.style.height = `${this.size}px`;
-        this.ballElement.style.backgroundColor = this.color;
+        this.ballElement.style.background = gradientShades[0];
+        this.ballElement.style.boxShadow = `0 8px 16px rgba(0, 0, 0, 0.3), inset 0 -4px 8px rgba(0, 0, 0, 0.2)`;
         gameField.appendChild(this.ballElement);
     }
 
@@ -278,9 +292,25 @@ class Pendulum {
     }
 
     // Update color based on progression, moving from darkest to lightest
-    updateColor() {
-        const shadeIndex = Math.min(shadesOfGreyGreen.length - 1, Math.floor(16 * this.centerPasses / maxPasses));
-        this.ballElement.style.backgroundColor = shadesOfGreyGreen[shadeIndex];
+   updateColor() {
+    const shadeIndex = Math.min(
+        gradientShades.length - 1, 
+        Math.floor(gradientShades.length * this.centerPasses / maxPasses)
+    );
+    const newGradient = gradientShades[shadeIndex];
+    this.ballElement.style.background = newGradient;
+}
+
+    // Generate a gradient background for the ball
+    getGradient(color) {
+        return `radial-gradient(circle, ${color} 20%, ${this.adjustColorBrightness(color, -0.2)} 80%)`;
+    }
+
+    // Adjust the brightness of a given RGB color string
+    adjustColorBrightness(rgb, factor) {
+        const [r, g, b] = rgb.match(/\d+/g).map(Number);
+        const adjust = (value) => Math.min(255, Math.max(0, Math.floor(value * (1 + factor))));
+        return `rgb(${adjust(r)}, ${adjust(g)}, ${adjust(b)})`;
     }
 
     remove() {
@@ -317,6 +347,8 @@ class Pendulum {
         }
     }
 }
+
+
 
 // Clean up game elements and reset state
 function cleanupGame() {
@@ -363,7 +395,7 @@ function createPendulum() {
     const startPos = launchPointController.getPosition();
     const segment = Math.floor(startPos.x / (gameField.clientWidth / 16));
     const size = pendulumSizes[0];
-    const color = shadesOfGreyGreen[0]; // Start with the darkest shade
+    const color = gradientShades[0]; // Start with the darkest shade
     const sound = sounds[segment];
 
     const pendulum = new Pendulum(startPos.x, startPos.y, size, color, sound);
