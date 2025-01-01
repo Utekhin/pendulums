@@ -77,12 +77,13 @@
             z-index: 0;
         }
         .ball {
-            position: absolute;
+            background-image: url('path/to/texture.jpg');
+            background-size: cover;
+            background-position: center;
             border-radius: 50%;
-            transition: background-color 0.5s ease;
-            z-index: 2;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3), inset 0 -2px 4px rgba(0, 0, 0, 0.2);
         }
+
         #points, #time {
             background-color: white;
             padding: 8px 16px;
